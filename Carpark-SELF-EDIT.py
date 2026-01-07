@@ -4,8 +4,17 @@ from datetime import timedelta
 from datetime import date
 import sys
 import os
-clear = lambda: os.system('cls')
-os.system("mode con cols=139 lines=30")
+import json
+import re
+import hashlib
+
+# Cross-platform clear screen function
+def clear():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+# Set console size only on Windows
+if os.name == 'nt':
+    os.system("mode con cols=139 lines=30")
 
 studentID = []
 fname = []
@@ -26,8 +35,17 @@ password = []
 user_fname = []
 user_lname = []
 
-userID.append("admin") #Default admin user
-password.append("1234")
+# Data files
+DATA_FILE = "parking_data.json"
+USERS_FILE = "users_data.json"
+
+# Hash password function
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# Default admin user with hashed password
+userID.append("admin")
+password.append(hash_password("1234"))
 user_fname.append("Rachel")
 user_lname.append("Lim")
 
@@ -58,16 +76,99 @@ for n in range(30,45):
             
 """                               THIS IS WHERE FUNCTIONS START                                """
 
+# Validation functions
+def validate_email(email):
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
+def validate_phone(phone):
+    pattern = r'^\d{8,15}$'
+    return re.match(pattern, phone) is not None
+
+def validate_tp_number(tp_num):
+    pattern = r'^TP\d{6}$'
+    return re.match(pattern, tp_num.upper()) is not None
+
 def inputNumber(message):
   while True:
     try:
-       userInput = int(input(message))       
+       userInput = int(input(message))
     except ValueError:
        print("Not an integer! Try again.")
        continue
     else:
-       return userInput 
+       return userInput
        break
+
+# Data persistence functions
+def save_parking_data():
+    try:
+        data = {
+            'studentID': studentID,
+            'fname': fname,
+            'lname': lname,
+            'phone': phone,
+            'email': email,
+            'carplate': carplate,
+            'register_date': register_date,
+            'expiry_date': expiry_date,
+            'status': status,
+            'store': store,
+            'parklocation': parklocation,
+            'parkingID': parkingID
+        }
+        with open(DATA_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        print(f"Error saving data: {e}")
+
+def load_parking_data():
+    global studentID, fname, lname, phone, email, carplate, register_date, expiry_date
+    global status, store, parklocation, parkingID
+    try:
+        if os.path.exists(DATA_FILE):
+            with open(DATA_FILE, 'r') as f:
+                data = json.load(f)
+                studentID = data.get('studentID', [])
+                fname = data.get('fname', [])
+                lname = data.get('lname', [])
+                phone = data.get('phone', [])
+                email = data.get('email', [])
+                carplate = data.get('carplate', [])
+                register_date = data.get('register_date', [])
+                expiry_date = data.get('expiry_date', [])
+                status = data.get('status', [])
+                store = data.get('store', [])
+                parklocation = data.get('parklocation', [])
+                parkingID = data.get('parkingID', [])
+    except Exception as e:
+        print(f"Error loading parking data: {e}")
+
+def save_users_data():
+    try:
+        data = {
+            'userID': userID,
+            'password': password,
+            'user_fname': user_fname,
+            'user_lname': user_lname
+        }
+        with open(USERS_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        print(f"Error saving user data: {e}")
+
+def load_users_data():
+    global userID, password, user_fname, user_lname
+    try:
+        if os.path.exists(USERS_FILE):
+            with open(USERS_FILE, 'r') as f:
+                data = json.load(f)
+                userID = data.get('userID', ['admin'])
+                password = data.get('password', [hash_password('1234')])
+                user_fname = data.get('user_fname', ['Rachel'])
+                user_lname = data.get('user_lname', ['Lim'])
+    except Exception as e:
+        print(f"Error loading user data: {e}")
 
     
 def menu(): #####################################################################   MENU
@@ -110,7 +211,10 @@ def menu(): ####################################################################
         elif option == "6":
             parkingslot()
             print("\n")
-            os.system("pause")
+            if os.name == 'nt':
+                os.system("pause")
+            else:
+                input("Press Enter to continue...")
             menu()
             
         elif option == "7":
@@ -182,22 +286,45 @@ def searchfail(): ##############################################################
 def add(): #####################################################################   Add new records
     clear()
     print("------- Enter Student's details ------".center(138))
-    temp = input("\nEnter Student's TP number: ")
-    temp = temp[:1].upper() + temp[1:].capitalize()
-    studentID.append(temp)
+
+    # TP Number validation
+    while True:
+        temp = input("\nEnter Student's TP number: ")
+        temp = temp[:2].upper() + temp[2:]
+        if validate_tp_number(temp):
+            if temp in studentID:
+                print("This TP number is already registered!")
+                continue
+            studentID.append(temp)
+            break
+        else:
+            print("Invalid TP number format! Please use format: TPxxxxxx (e.g., TP038850)")
+
     tempname = input("Enter Student's First Name: ")
     fname.append(tempname.title())
     tempname = input("Enter Student's Last Name: ")
     lname.append(tempname.title())
-    tempname = inputNumber("Enter Student's Mobile Number: ")
-    tempname = str(tempname)
-    #tempname = input("Enter Student's Mobile Number: ")
-    phone.append(tempname)
-    
-    tempname = input("Enter Student's E-mail address: ")
-    email.append(tempname)
+
+    # Phone validation
+    while True:
+        tempname = input("Enter Student's Mobile Number: ")
+        if validate_phone(tempname):
+            phone.append(tempname)
+            break
+        else:
+            print("Invalid phone number! Please enter 8-15 digits.")
+
+    # Email validation
+    while True:
+        tempname = input("Enter Student's E-mail address: ")
+        if validate_email(tempname):
+            email.append(tempname)
+            break
+        else:
+            print("Invalid email format! Please enter a valid email address.")
+
     tempname = input("Enter Student's Car Plate Number: ")
-    carplate.append(tempname)
+    carplate.append(tempname.upper())
     #tempname = int(input("Enter Date of Registration in DD-MM-YYYY format: "))
     #register_date.append(tempname)
     """year = int(input('Enter a year'))
@@ -248,8 +375,9 @@ def add(): #####################################################################
             flag += 1
 
     clear()
-    
+
     listall()
+    save_parking_data()  # Save data after adding
     print("\nAdded Successfully !")
     print("1. Add Another New Record\n2. Back")
     option=None
@@ -296,9 +424,13 @@ def modify_records():
                 
             if option == "1":
                 temp = input("\nEnter Student's TP number: ")
-                temp = temp[:1].upper() + temp[2:].capitalize()
-                studentID[location] = temp
-                break
+                temp = temp[:2].upper() + temp[2:]
+                if validate_tp_number(temp):
+                    studentID[location] = temp
+                    break
+                else:
+                    print("Invalid TP number format!")
+                    continue
             
             elif option == "2":
                 tempname = str(input("Enter Student's First name: "))
@@ -363,7 +495,7 @@ def modify_records():
                 
             elif option == "9":
                 temp = input("\nEnter Student's TP number: ")
-                temp = temp[:1].upper() + temp[2:].capitalize()
+                temp = temp[:2].upper() + temp[2:]
                 studentID[location] = temp
                 tempname = str(input("Enter Student's First name: "))
                 fname[location] = tempname.title()
@@ -381,6 +513,7 @@ def modify_records():
         clear()
         print("------- MODIFY STUDENT'S DETAILS ------".center(138))
         listall()
+        save_parking_data()  # Save data after modifying
         print("\nModify Successfully !")
         print("1. Modify Another One\n2. Back")
         option=None
@@ -443,6 +576,7 @@ def delete_records():
         clear()
         print("------- MODIFY STUDENT'S DETAILS ------".center(138))
         listall()
+        save_parking_data()  # Save data after deleting
         print("\nDelete Successfully !")
         print("1. Delete Another Student's Details\n2. Back")
         option=None
@@ -484,7 +618,7 @@ def search(): ##################################################################
             
         if option == "1":
             tempname = str(input("\nEnter Student's TP number: "))
-            tempname = tempname[:1].upper() + tempname[2:].capitalize()
+            tempname = tempname[:2].upper() + tempname[2:]
             current = 0
             flag1 = 0
             clear()
@@ -675,7 +809,7 @@ def search(): ##################################################################
                     
                 if option == "1":
                     temp = input("\nEnter Student's TP number: ")
-                    temp = temp[:1].upper() + temp[2:].capitalize()
+                    temp = temp[:2].upper() + temp[2:]
                     studentID[current] = temp
                     break
                 
@@ -742,7 +876,7 @@ def search(): ##################################################################
 
                 elif option == "9":
                     temp = input("\nEnter Student's TP number: ")
-                    temp = temp[:1].upper() + temp[2:].capitalize()
+                    temp = temp[:2].upper() + temp[2:]
                     studentID[current] = temp
                     tempname = str(input("Enter Student's First name: "))
                     fname[current] = tempname.title()
@@ -760,6 +894,7 @@ def search(): ##################################################################
             clear()
             print("------- SEARCH STUDENT'S DETAILS ------".center(138))
             listall()
+            save_parking_data()  # Save data after modifying from search
             print("\nModify successfully !")
             print("1. Search Another One\n2. Modify Another Student's Details\n3. Back")
             option=None
@@ -799,6 +934,7 @@ def search(): ##################################################################
             clear()
             print("\t\t\t\t         ------- SEARCH STUDENT'S DETAILS ------")
             listall()
+            save_parking_data()  # Save data after deleting from search
             print("\nDelete Successfully !")
             print("1. Search Another One\n2. Delete Another Student's Details\n3. Back")
             option=None
@@ -922,48 +1058,65 @@ def login(): ###################################################################
     print("------- LOGIN -------".center(138))
     temp_userID = input("\nUserID: ")
     temp_password = input("Password: ")
-    
-    if (temp_userID in userID) and (temp_password in password):
+
+    # Fixed authentication: check if username exists AND password matches for that user
+    if temp_userID in userID:
         location = userID.index(temp_userID)
-        print("\nWelcome",(user_fname[location]),(user_lname[location]),"!!")
-        os.system("pause")
-        menu()
-    else:
-        print("\nInvalid UserID or Invalid Password!")
-        print("\n1. Login Again \n2. Register \n3. Back")
-        flag = 0
-        option = None
-        while option != 3:
-                
-            if flag == 0:
-                option = str(input("\nEnter Your Choice: "))
+        if password[location] == hash_password(temp_password):
+            print("\nWelcome",(user_fname[location]),(user_lname[location]),"!!")
+            if os.name == 'nt':
+                os.system("pause")
             else:
-                option = str(input("Invalid Choice! Please Try Again: "))
-                
-            if option == "1":
-                login()
-                
-            elif option == "2":
-                register()
-                
-            elif option == "3":
-                home()
-                
-            else:
-                flag += 1
+                input("\nPress Enter to continue...")
+            menu()
+            return
+
+    # If we reach here, login failed
+    print("\nInvalid UserID or Invalid Password!")
+    print("\n1. Login Again \n2. Register \n3. Back")
+    flag = 0
+    option = None
+    while option != 3:
+
+        if flag == 0:
+            option = str(input("\nEnter Your Choice: "))
+        else:
+            option = str(input("Invalid Choice! Please Try Again: "))
+
+        if option == "1":
+            login()
+
+        elif option == "2":
+            register()
+
+        elif option == "3":
+            home()
+
+        else:
+            flag += 1
     return 
 
 def register(): #####################################################################   Register page
     clear()
     print("------- REGISTRATION -------".center(138))
-    tempname = input("\nEnter UserID: ")
-    userID.append(tempname)
-    tempname = input("Enter Passowrd: ")
-    password.append(tempname)
+
+    # Check for duplicate username
+    while True:
+        tempname = input("\nEnter UserID: ")
+        if tempname in userID:
+            print("This UserID is already taken! Please choose another.")
+            continue
+        userID.append(tempname)
+        break
+
+    tempname = input("Enter Password: ")
+    password.append(hash_password(tempname))  # Hash the password
     tempname = input("Enter First Name: ")
-    user_fname.append(tempname)
+    user_fname.append(tempname.title())
     tempname = input("Enter Last Name: ")
-    user_lname.append(tempname)
+    user_lname.append(tempname.title())
+
+    save_users_data()  # Save user data after registration
     print("\nAccount Successfully Created!")
     print("\n1. Register Another New Account\n2. Login \n3. Back")
     flag = 0
@@ -989,8 +1142,33 @@ def register(): ################################################################
                 
     return
            
-"""                                    END OF FUNCTIONS                                """        
+"""                                    END OF FUNCTIONS                                """
 """                              THIS IS WHERE THE CODE START                          """
+
+# Load data at startup
+load_users_data()
+load_parking_data()
+
+# Initialize parking slots if loading failed
+if not parkingID:
+    for n in range(0,15):
+        if n < 9:
+            parkingID.append("L10"+str(n+1))
+        elif n < 15:
+            parkingID.append("L1"+str(n+1))
+
+    for n in range(15,45):
+        if n < 24:
+            parkingID.append("L20"+str(n-14))
+        elif n < 30:
+            parkingID.append("L2"+str(n-14))
+
+    for n in range(30,45):
+        if n < 39:
+            parkingID.append("L30"+str(n-29))
+        elif n < 45:
+            parkingID.append("L3"+str(n-29))
+
 home()
 
 
